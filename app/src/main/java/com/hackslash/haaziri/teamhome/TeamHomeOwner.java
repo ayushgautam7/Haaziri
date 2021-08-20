@@ -3,6 +3,7 @@ package com.hackslash.haaziri.teamhome;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothAssignedNumbers;
@@ -14,6 +15,7 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,15 +23,19 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 import com.hackslash.haaziri.R;
 import com.hackslash.haaziri.activitydialog.ActivityDialog;
 import com.hackslash.haaziri.firebase.FirebaseVars;
 import com.hackslash.haaziri.models.Session;
 import com.hackslash.haaziri.models.Team;
+import com.hackslash.haaziri.models.UserProfile;
 import com.hackslash.haaziri.sessions.CurrentSessionActivity;
 import com.hackslash.haaziri.utils.Constants;
 import com.hackslash.haaziri.utils.MotionToastUtitls;
+
+import java.util.ArrayList;
 
 public class TeamHomeOwner extends AppCompatActivity {
 
@@ -40,11 +46,18 @@ public class TeamHomeOwner extends AppCompatActivity {
     private TextView teamCodeTv;
     private String teamCode = "";
     private Button takeHaaziriBtn;
+    private TextView recentSessionsBtn;
     private Context mContext = this;
     private ActivityDialog dialog;
     private String oldName = "My phone";
     private Team selectedTeam;
     private String teamPath = "";
+    private TextView teamNameTv;
+    private TextView recentSessionLabel;
+    private ImageView backBtn;
+    private TextView memberName;
+    private ArrayList<String> memberIds;
+    private MemberAdapter memberAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +75,31 @@ public class TeamHomeOwner extends AppCompatActivity {
         setupListeners();
 
         fetchTeamDetails();
+
+        fetchMember();
+    }
+    //fetching member details and using loop to add member details in memberIds arryalist
+    private void fetchMember() {
+        DatabaseReference mRootRef = FirebaseVars.mRootRef;
+        mRootRef.child(teamPath + "/members/");
+        mRootRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                UserProfile memberDetails = snapshot.child("profile").getValue(UserProfile.class);
+                for (DataSnapshot uid : snapshot.child(teamPath + "/members/").getChildren())
+                    memberIds.add(uid.getValue(String.class));
+                memberAdapter.notifyDataSetChanged();
+
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                dialog.hideDialog();
+                MotionToastUtitls.showErrorToast(mContext, "Error", "Some error occurred in fetching member details");
+                Log.d(TAG, error.getMessage());
+
+            }
+        });
     }
 
     /**
@@ -75,6 +113,7 @@ public class TeamHomeOwner extends AppCompatActivity {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 selectedTeam = snapshot.getValue(Team.class);
+                teamNameTv.setText(selectedTeam.getTeamName());
                 dialog.hideDialog();
             }
 
@@ -95,6 +134,13 @@ public class TeamHomeOwner extends AppCompatActivity {
             makeDeviceDiscoverable();
 
 
+        });
+        backBtn.setOnClickListener(v -> finish());
+        recentSessionsBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(mContext, OwnerRecentSessionsActivity.class);
+            intent.putExtra(Constants.TEAM_NAME_KEY, teamNameTv.getText().toString());
+            intent.putExtra(Constants.TEAM_CODE_KEY, teamCode);
+            startActivity(intent);
         });
     }
 
@@ -189,7 +235,12 @@ public class TeamHomeOwner extends AppCompatActivity {
         teamCodeTv = findViewById(R.id.teamCodeTv);
         teamCodeTv.setText("Team Code: " + teamCode);
         takeHaaziriBtn = findViewById(R.id.takeHaaziriBtn);
-
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        teamNameTv = toolbar.findViewById(R.id.teamNameTv);
+        backBtn = toolbar.findViewById(R.id.backBtn);
+        recentSessionLabel = toolbar.findViewById(R.id.recentSessionsLabel);
+        recentSessionLabel.setText("Team Members");
+        recentSessionsBtn = findViewById(R.id.recentActivityBtn);
         dialog = new ActivityDialog(mContext);
         dialog.setCancelable(false);
     }
